@@ -1,4 +1,4 @@
-name: Enforce UAT branch naming
+name: Allow only UAT branch to merge into main
 
 on:
   pull_request:
@@ -12,7 +12,7 @@ jobs:
       - name: Check source branch name
         run: |
           echo "Source branch: ${{ github.head_ref }}"
-          if [[ ! "${{ github.head_ref }}" =~ ^UAT.* ]]; then
-            echo "❌ Only branches starting with 'UAT' are allowed to merge into main"
+          if [[ "${{ github.head_ref }}" != "UAT" ]]; then
+            echo "❌ Only the 'UAT' branch is allowed to merge into main"
             exit 1
           fi

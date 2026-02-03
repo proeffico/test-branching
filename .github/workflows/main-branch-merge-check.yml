@@ -1,0 +1,60 @@
+# ------------------------------------------------------------
+# Workflow name shown in GitHub Actions UI
+# ------------------------------------------------------------
+name: Validate source branch for main
+
+# ------------------------------------------------------------
+# Trigger:
+# This workflow runs when a Pull Request
+# targets the 'main' branch
+# ------------------------------------------------------------
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  source-branch-validation:
+    # --------------------------------------------------------
+    # Job runs on a GitHub-hosted Linux runner
+    # --------------------------------------------------------
+    runs-on: ubuntu-latest
+
+    steps:
+      # ------------------------------------------------------
+      # Step: Validate source branch name
+      # ------------------------------------------------------
+      - name: Validate source branch
+        run: |
+          # --------------------------------------------------
+          # github.head_ref = source branch of the PR
+          # --------------------------------------------------
+          BRANCH_NAME="${{ github.head_ref }}"
+          echo "🔍 Checking source branch: $BRANCH_NAME"
+
+          # --------------------------------------------------
+          # REGEX for allowed hotfix branches
+          # Format:
+          # hotfix-functionName-dd.mm.yy
+          # --------------------------------------------------
+          HOTFIX_REGEX='^hotfix-[a-zA-Z0-9_-]+-(0[1-9]|[12][0-9]|3[01])\.(0[1-9]|1[0-2])\.[0-9]{2}$'
+
+          # --------------------------------------------------
+          # Rule:
+          # - Allow merge if source branch is exactly "UAT"
+          # - OR if source branch matches hotfix pattern
+          # --------------------------------------------------
+          if [[ "$BRANCH_NAME" == "UAT" || "$BRANCH_NAME" =~ $HOTFIX_REGEX ]]; then
+            echo "✅ Branch '$BRANCH_NAME' is allowed to merge into main."
+            exit 0
+          fi
+
+          # --------------------------------------------------
+          # If branch is not allowed, fail the job
+          # --------------------------------------------------
+          echo "❌ ERROR: Branch '$BRANCH_NAME' is NOT allowed to merge into main"
+          echo ""
+          echo "Only the following are allowed:"
+          echo "  - UAT"
+          echo "  - hotfix-functionName-dd.mm.yy"
+          exit 1

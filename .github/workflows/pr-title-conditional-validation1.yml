@@ -1,0 +1,82 @@
+# ------------------------------------------------------------
+# Workflow name shown in GitHub Actions UI
+# ------------------------------------------------------------
+name: Conditional PR title validation
+
+# ------------------------------------------------------------
+# Trigger:
+# Runs on PR create / update events
+# ------------------------------------------------------------
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+jobs:
+  pr-title-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate PR title (conditional)
+        run: |
+          # --------------------------------------------------
+          # Source and target branch names
+          # --------------------------------------------------
+          SOURCE_BRANCH="${{ github.head_ref }}"
+          TARGET_BRANCH="${{ github.base_ref }}"
+          PR_TITLE="${{ github.event.pull_request.title }}"
+
+          echo "🔍 Source branch: $SOURCE_BRANCH"
+          echo "🎯 Target branch: $TARGET_BRANCH"
+          echo "📝 PR title: $PR_TITLE"
+
+          # --------------------------------------------------
+          # Regex definitions
+          # --------------------------------------------------
+          SPRINT_REGEX='^sprint-Q[1-4]-.*'
+          HOTFIX_REGEX='^hotfix-.*'
+          TITLE_REGEX='^(Major|Minor|Patch)\b'
+
+          # --------------------------------------------------
+          # Determine whether title validation is required
+          # --------------------------------------------------
+          VALIDATION_REQUIRED=false
+
+          # sprint-* → UAT
+          if [[ "$SOURCE_BRANCH" =~ $SPRINT_REGEX && "$TARGET_BRANCH" == "UAT" ]]; then
+            VALIDATION_REQUIRED=true
+          fi
+
+          # UAT → main
+          if [[ "$SOURCE_BRANCH" == "UAT" && "$TARGET_BRANCH" == "main" ]]; then
+            VALIDATION_REQUIRED=true
+          fi
+
+          # hotfix-* → main / UAT / sprint-*
+          if [[ "$SOURCE_BRANCH" =~ $HOTFIX_REGEX && \
+                ( "$TARGET_BRANCH" == "main" || "$TARGET_BRANCH" == "UAT" || "$TARGET_BRANCH" =~ $SPRINT_REGEX ) ]]; then
+            VALIDATION_REQUIRED=true
+          fi
+
+          # --------------------------------------------------
+          # If validation is required, enforce title rule
+          # --------------------------------------------------
+          if [[ "$VALIDATION_REQUIRED" == true ]]; then
+            echo "⚠️ PR title validation is REQUIRED for this branch flow"
+
+            if [[ ! "$PR_TITLE" =~ $TITLE_REGEX ]]; then
+              echo "❌ ERROR: Invalid PR title"
+              echo ""
+              echo "PR title must start with one of the following:"
+              echo "  - Major"
+              echo "  - Minor"
+              echo "  - Patch"
+              exit 1
+            fi
+
+            echo "✅ PR title is valid"
+          else
+            # ------------------------------------------------
+            # If validation is NOT required, skip the check
+            # ------------------------------------------------
+            echo "ℹ️ PR title validation is NOT required for this branch flow"
+          fi

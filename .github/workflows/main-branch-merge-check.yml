@@ -1,3 +1,7 @@
+# Rule:
+          # - Allow merge if source branch is exactly "UAT"
+          # - OR if source branch matches hotfix pattern
+
 # ------------------------------------------------------------
 # Workflow name shown in GitHub Actions UI
 # ------------------------------------------------------------

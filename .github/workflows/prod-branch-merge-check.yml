@@ -1,0 +1,22 @@
+name: Restrict PROD merge source
+
+on:
+  pull_request:
+    branches:
+      - PROD
+
+jobs:
+  validate-source:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate source branch for PROD
+        run: |
+          echo "Source branch: ${{ github.head_ref }}"
+
+          if [[ "${{ github.head_ref }}" == "UAT" || "${{ github.head_ref }}" =~ ^Hotfix.* ]]; then
+            echo "✅ Allowed: UAT or Hotfix* branch"
+          else
+            echo "❌ Only UAT or Hotfix* branches can merge into PROD"
+            exit 1
+          fi

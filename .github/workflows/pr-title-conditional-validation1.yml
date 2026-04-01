@@ -12,11 +12,15 @@ jobs:
       - name: Validate PR title (conditional)
         run: |
           # --------------------------------------------------
-          # Source and target branch names
+          # Get branch names (reliable source)
           # --------------------------------------------------
-          SOURCE_BRANCH="${{ github.head_ref }}"
-          TARGET_BRANCH="${{ github.base_ref }}"
+          SOURCE_BRANCH="${{ github.event.pull_request.head.ref }}"
+          TARGET_BRANCH="${{ github.event.pull_request.base.ref }}"
           PR_TITLE="${{ github.event.pull_request.title }}"
+
+          # Normalize (trim + uppercase)
+          SOURCE_BRANCH=$(echo "$SOURCE_BRANCH" | xargs | tr '[:lower:]' '[:upper:]')
+          TARGET_BRANCH=$(echo "$TARGET_BRANCH" | xargs | tr '[:lower:]' '[:upper:]')
 
           echo "🔍 Source branch: $SOURCE_BRANCH"
           echo "🎯 Target branch: $TARGET_BRANCH"
@@ -25,8 +29,8 @@ jobs:
           # --------------------------------------------------
           # Regex definitions
           # --------------------------------------------------
-          SPRINT_REGEX='^Sprint.*'
-          HOTFIX_REGEX='^Hotfix.*'
+          SPRINT_REGEX='^SPRINT.*'
+          HOTFIX_REGEX='^HOTFIX.*'
           TITLE_REGEX='^(Major|Minor|Patch)\b'
 
           # --------------------------------------------------
@@ -34,24 +38,18 @@ jobs:
           # --------------------------------------------------
           VALIDATION_REQUIRED=false
 
-          # Sprint* → UAT
-          if [[ "$SOURCE_BRANCH" =~ $SPRINT_REGEX && "$TARGET_BRANCH" == "UAT" ]]; then
+          # Rule 1: Sprint* OR Hotfix* → UAT
+          if [[ ( "$SOURCE_BRANCH" =~ $SPRINT_REGEX || "$SOURCE_BRANCH" =~ $HOTFIX_REGEX ) && "$TARGET_BRANCH" == "UAT" ]]; then
             VALIDATION_REQUIRED=true
           fi
 
-          # UAT → PROD
-          if [[ "$SOURCE_BRANCH" == "UAT" && "$TARGET_BRANCH" == "PROD" ]]; then
-            VALIDATION_REQUIRED=true
-          fi
-
-          # Hotfix* → PROD / UAT / Sprint*
-          if [[ "$SOURCE_BRANCH" =~ $HOTFIX_REGEX && \
-                ( "$TARGET_BRANCH" == "PROD" || "$TARGET_BRANCH" == "UAT" || "$TARGET_BRANCH" =~ $SPRINT_REGEX ) ]]; then
+          # Rule 2: UAT OR Hotfix* → PROD
+          if [[ ( "$SOURCE_BRANCH" == "UAT" || "$SOURCE_BRANCH" =~ $HOTFIX_REGEX ) && "$TARGET_BRANCH" == "PROD" ]]; then
             VALIDATION_REQUIRED=true
           fi
 
           # --------------------------------------------------
-          # If validation is required, enforce title rule
+          # Validation logic
           # --------------------------------------------------
           if [[ "$VALIDATION_REQUIRED" == true ]]; then
             echo "⚠️ PR title validation is REQUIRED for this branch flow"

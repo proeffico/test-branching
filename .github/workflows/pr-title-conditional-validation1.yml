@@ -1,70 +1,62 @@
-name: Conditional PR title validation
+name: PR Validation
 
 on:
   pull_request:
-    types: [opened, edited, reopened, synchronize]
+    types: [opened, edited, synchronize, reopened]
 
 jobs:
-  pr-title-check:
+  validate:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Validate PR title (conditional)
+      - name: Validate PR Title
         run: |
-          # --------------------------------------------------
-          # Get branch names (reliable source)
-          # --------------------------------------------------
-          SOURCE_BRANCH="${{ github.event.pull_request.head.ref }}"
-          TARGET_BRANCH="${{ github.event.pull_request.base.ref }}"
-          PR_TITLE="${{ github.event.pull_request.title }}"
+          TITLE="${{ github.event.pull_request.title }}"
+          echo "PR Title: $TITLE"
 
-          # Normalize (trim + uppercase)
-          SOURCE_BRANCH=$(echo "$SOURCE_BRANCH" | xargs | tr '[:lower:]' '[:upper:]')
-          TARGET_BRANCH=$(echo "$TARGET_BRANCH" | xargs | tr '[:lower:]' '[:upper:]')
-
-          echo "🔍 Source branch: $SOURCE_BRANCH"
-          echo "🎯 Target branch: $TARGET_BRANCH"
-          echo "📝 PR title: $PR_TITLE"
-
-          # --------------------------------------------------
-          # Regex definitions
-          # --------------------------------------------------
-          SPRINT_REGEX='^SPRINT.*'
-          HOTFIX_REGEX='^HOTFIX.*'
-          TITLE_REGEX='^(Major|Minor|Patch)\b'
-
-          # --------------------------------------------------
-          # Determine whether title validation is required
-          # --------------------------------------------------
-          VALIDATION_REQUIRED=false
-
-          # Rule 1: Sprint* OR Hotfix* → UAT
-          if [[ ( "$SOURCE_BRANCH" =~ $SPRINT_REGEX || "$SOURCE_BRANCH" =~ $HOTFIX_REGEX ) && "$TARGET_BRANCH" == "UAT" ]]; then
-            VALIDATION_REQUIRED=true
+          if [[ ! "$TITLE" =~ ^(Major|Minor|Patch).+ ]]; then
+            echo "❌ PR title must start with Major, Minor, or Patch"
+            exit 1
           fi
 
-          # Rule 2: UAT OR Hotfix* → PROD
-          if [[ ( "$SOURCE_BRANCH" == "UAT" || "$SOURCE_BRANCH" =~ $HOTFIX_REGEX ) && "$TARGET_BRANCH" == "PROD" ]]; then
-            VALIDATION_REQUIRED=true
-          fi
+      - name: Validate Branch Rules
+        run: |
+          SOURCE="${{ github.head_ref }}"
+          TARGET="${{ github.base_ref }}"
 
-          # --------------------------------------------------
-          # Validation logic
-          # --------------------------------------------------
-          if [[ "$VALIDATION_REQUIRED" == true ]]; then
-            echo "⚠️ PR title validation is REQUIRED for this branch flow"
+          echo "Source: $SOURCE"
+          echo "Target: $TARGET"
 
-            if [[ ! "$PR_TITLE" =~ $TITLE_REGEX ]]; then
-              echo "❌ ERROR: Invalid PR title"
-              echo ""
-              echo "PR title must start with one of the following:"
-              echo "  - Major"
-              echo "  - Minor"
-              echo "  - Patch"
-              exit 1
+          sprint_regex="^Sprint-Q[1-4]-[0-9]{2}\.[0-9]{2}\.[0-9]{2}$"
+          hotfix_regex="^Hotfix-[a-zA-Z0-9_-]+-[0-9]{2}\.[0-9]{2}\.[0-9]{2}$"
+
+          valid=false
+
+          # Sprint/Hotfix -> UAT
+          if [[ "$TARGET" == "UAT" ]]; then
+            if [[ "$SOURCE" =~ $sprint_regex || "$SOURCE" =~ $hotfix_regex ]]; then
+              valid=true
             fi
-
-            echo "✅ PR title is valid"
-          else
-            echo "ℹ️ PR title validation is NOT required for this branch flow"
           fi
+
+          # UAT/Hotfix -> PROD
+          if [[ "$TARGET" == "PROD" ]]; then
+            if [[ "$SOURCE" == "UAT" || "$SOURCE" =~ $hotfix_regex ]]; then
+              valid=true
+            fi
+          fi
+
+          # Hotfix -> Sprint
+          if [[ "$TARGET" =~ $sprint_regex ]]; then
+            if [[ "$SOURCE" =~ $hotfix_regex ]]; then
+              valid=true
+            fi
+          fi
+
+          if [[ "$valid" != true ]]; then
+            echo "❌ Invalid branch merge:"
+            echo "   $SOURCE → $TARGET is not allowed"
+            exit 1
+          fi
+
+          echo "✅ Branch rules passed"

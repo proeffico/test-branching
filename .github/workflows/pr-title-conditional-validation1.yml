@@ -1,12 +1,5 @@
-# ------------------------------------------------------------
-# Workflow name shown in GitHub Actions UI
-# ------------------------------------------------------------
 name: Conditional PR title validation
 
-# ------------------------------------------------------------
-# Trigger:
-# Runs on PR create / update events
-# ------------------------------------------------------------
 on:
   pull_request:
     types: [opened, edited, reopened, synchronize]
@@ -32,8 +25,8 @@ jobs:
           # --------------------------------------------------
           # Regex definitions
           # --------------------------------------------------
-          SPRINT_REGEX='^sprint-Q[1-4]-.*'
-          HOTFIX_REGEX='^hotfix-.*'
+          SPRINT_REGEX='^Sprint.*'
+          HOTFIX_REGEX='^Hotfix.*'
           TITLE_REGEX='^(Major|Minor|Patch)\b'
 
           # --------------------------------------------------
@@ -41,19 +34,19 @@ jobs:
           # --------------------------------------------------
           VALIDATION_REQUIRED=false
 
-          # sprint-* → UAT
+          # Sprint* → UAT
           if [[ "$SOURCE_BRANCH" =~ $SPRINT_REGEX && "$TARGET_BRANCH" == "UAT" ]]; then
             VALIDATION_REQUIRED=true
           fi
 
-          # UAT → main
-          if [[ "$SOURCE_BRANCH" == "UAT" && "$TARGET_BRANCH" == "main" ]]; then
+          # UAT → PROD
+          if [[ "$SOURCE_BRANCH" == "UAT" && "$TARGET_BRANCH" == "PROD" ]]; then
             VALIDATION_REQUIRED=true
           fi
 
-          # hotfix-* → main / UAT / sprint-*
+          # Hotfix* → PROD / UAT / Sprint*
           if [[ "$SOURCE_BRANCH" =~ $HOTFIX_REGEX && \
-                ( "$TARGET_BRANCH" == "main" || "$TARGET_BRANCH" == "UAT" || "$TARGET_BRANCH" =~ $SPRINT_REGEX ) ]]; then
+                ( "$TARGET_BRANCH" == "PROD" || "$TARGET_BRANCH" == "UAT" || "$TARGET_BRANCH" =~ $SPRINT_REGEX ) ]]; then
             VALIDATION_REQUIRED=true
           fi
 
@@ -75,8 +68,5 @@ jobs:
 
             echo "✅ PR title is valid"
           else
-            # ------------------------------------------------
-            # If validation is NOT required, skip the check
-            # ------------------------------------------------
             echo "ℹ️ PR title validation is NOT required for this branch flow"
           fi

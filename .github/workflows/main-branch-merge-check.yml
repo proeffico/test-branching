@@ -1,60 +1,22 @@
-# ------------------------------------------------------------
-# Workflow name shown in GitHub Actions UI
-# ------------------------------------------------------------
-name: Validate source branch for main
+name: Restrict PROD merge source
 
-# ------------------------------------------------------------
-# Trigger:
-# This workflow runs when a Pull Request
-# targets the 'main' branch
-# ------------------------------------------------------------
 on:
   pull_request:
     branches:
-      - main
+      - PROD
 
 jobs:
-  source-branch-validation:
-    # --------------------------------------------------------
-    # Job runs on a GitHub-hosted Linux runner
-    # --------------------------------------------------------
+  validate-source:
     runs-on: ubuntu-latest
 
     steps:
-      # ------------------------------------------------------
-      # Step: Validate source branch name
-      # ------------------------------------------------------
-      - name: Validate source branch
+      - name: Validate source branch for PROD
         run: |
-          # --------------------------------------------------
-          # github.head_ref = source branch of the PR
-          # --------------------------------------------------
-          BRANCH_NAME="${{ github.head_ref }}"
-          echo "🔍 Checking source branch: $BRANCH_NAME"
+          echo "Source branch: ${{ github.head_ref }}"
 
-          # --------------------------------------------------
-          # REGEX for allowed hotfix branches
-          # Format:
-          # hotfix-functionName-dd.mm.yy
-          # --------------------------------------------------
-          HOTFIX_REGEX='^hotfix-[a-zA-Z0-9_-]+-(0[1-9]|[12][0-9]|3[01])\.(0[1-9]|1[0-2])\.[0-9]{2}$'
-
-          # --------------------------------------------------
-          # Rule:
-          # - Allow merge if source branch is exactly "UAT"
-          # - OR if source branch matches hotfix pattern
-          # --------------------------------------------------
-          if [[ "$BRANCH_NAME" == "UAT" || "$BRANCH_NAME" =~ $HOTFIX_REGEX ]]; then
-            echo "✅ Branch '$BRANCH_NAME' is allowed to merge into main."
-            exit 0
+          if [[ "${{ github.head_ref }}" == "UAT" || "${{ github.head_ref }}" =~ ^Hotfix.* ]]; then
+            echo "✅ Allowed: UAT or Hotfix* branch"
+          else
+            echo "❌ Only UAT or Hotfix* branches can merge into PROD"
+            exit 1
           fi
-
-          # --------------------------------------------------
-          # If branch is not allowed, fail the job
-          # --------------------------------------------------
-          echo "❌ ERROR: Branch '$BRANCH_NAME' is NOT allowed to merge into main"
-          echo ""
-          echo "Only the following are allowed:"
-          echo "  - UAT"
-          echo "  - hotfix-functionName-dd.mm.yy"
-          exit 1
